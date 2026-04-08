@@ -1,0 +1,1 @@
+This repository is provided to support the implementation of the KNN classifier presented in the paper titled 'Classifying Accelerated Carbonation Treatment of Recycled Concrete: Effects of Process Variables on Mechanical Properties, Durability and CO₂ Uptake'. Rouhollah Ayazian, Daman K. Panesar. Sustainable Materials and Technologies. 2026
