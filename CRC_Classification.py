@@ -9,7 +9,6 @@ from sklearn.preprocessing import LabelEncoder
 
 #GOF
 # ==================================
-
 def standardized_residuals(x, mu_hat=None, sigma_hat=None):
     x = np.asarray(x, dtype=float)
 
