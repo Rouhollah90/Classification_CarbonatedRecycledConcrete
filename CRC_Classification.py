@@ -11,7 +11,6 @@ from sklearn.preprocessing import LabelEncoder
 # ==================================
 
 def standardized_residuals(x, mu_hat=None, sigma_hat=None):
-    
     x = np.asarray(x, dtype=float)
 
     if mu_hat is None:
@@ -28,7 +27,6 @@ def standardized_residuals(x, mu_hat=None, sigma_hat=None):
 
 
 def remove_outliers_by_zscore(x, threshold=3.0):
-   
     x = np.asarray(x, dtype=float)
     z, _, _ = standardized_residuals(x)
     outlier_mask = np.abs(z) > threshold
@@ -37,7 +35,6 @@ def remove_outliers_by_zscore(x, threshold=3.0):
 
 
 def anderson_darling_statistic(x, cdf_function):
-    
     x = np.asarray(x, dtype=float)
     x = np.sort(x)
     n = len(x)
@@ -46,8 +43,6 @@ def anderson_darling_statistic(x, cdf_function):
         raise ValueError("At least two observations are required.")
 
     Fx = np.asarray(cdf_function(x), dtype=float)
-
-    # Prevent log(0) and log(1-1)
     eps = 1e-12
     Fx = np.clip(Fx, eps, 1 - eps)
 
@@ -56,15 +51,10 @@ def anderson_darling_statistic(x, cdf_function):
     A2 = -n - (1.0 / n) * np.sum(
         (2 * i - 1) * (np.log(Fx) + np.log(1.0 - Fx[::-1]))
     )
-
     return A2
-
 
 #Distributions
 def ad_normal(x):
-    """
-    Fit a normal distribution and compute A^2.
-    """
     x = np.asarray(x, dtype=float)
     mu_hat = np.mean(x)
     sigma_hat = np.std(x, ddof=1)
@@ -77,19 +67,12 @@ def ad_normal(x):
         lambda v: stats.norm.cdf(v, loc=mu_hat, scale=sigma_hat)
     )
 
-
 def ad_lognormal(x):
-    """
-    Fit a log-normal distribution and compute A^2.
-    Requires x > 0.
-    """
     x = np.asarray(x, dtype=float)
 
     if np.any(x <= 0):
         raise ValueError("Log-normal distribution requires all data > 0.")
 
-    # scipy parameterization:
-    # shape = sigma, scale = exp(mu), loc = 0
     shape, loc, scale = stats.lognorm.fit(x, floc=0)
 
     return anderson_darling_statistic(
@@ -99,7 +82,6 @@ def ad_lognormal(x):
 
     ## TLN: Truncated Log-Normal to Long tail
 def truncated_lognormal_cdf(x, shape, loc, scale, xmin, xmax):
-    
     x = np.asarray(x, dtype=float)
 
     base_cdf = lambda t: stats.lognorm.cdf(t, s=shape, loc=loc, scale=scale)
@@ -123,9 +105,7 @@ def truncated_lognormal_cdf(x, shape, loc, scale, xmin, xmax):
 
     return Fx
 
-
 def ad_tln(x, xmin=None, xmax=None):
-    
     x = np.asarray(x, dtype=float)
 
     if np.any(x <= 0):
@@ -149,11 +129,7 @@ def ad_tln(x, xmin=None, xmax=None):
         lambda v: truncated_lognormal_cdf(v, shape, loc, scale, xmin, xmax)
     )
 
-
 def ad_weibull(x):
-    """
-    Fit a Weibull distribution and compute A^2.
-    """
     x = np.asarray(x, dtype=float)
 
     c, loc, scale = stats.weibull_min.fit(x)
@@ -163,11 +139,7 @@ def ad_weibull(x):
         lambda v: stats.weibull_min.cdf(v, c=c, loc=loc, scale=scale)
     )
 
-
 def ad_gamma(x):
-    """
-    Fit a Gamma distribution and compute A^2.
-    """
     x = np.asarray(x, dtype=float)
 
     a, loc, scale = stats.gamma.fit(x)
@@ -179,7 +151,6 @@ def ad_gamma(x):
 
 
 def compare_distributions(x, remove_outliers=False, z_threshold=3.0, xmin=None, xmax=None):
-    
     x = np.asarray(x, dtype=float)
 
     if remove_outliers:
@@ -191,9 +162,7 @@ def compare_distributions(x, remove_outliers=False, z_threshold=3.0, xmin=None, 
 
     results = {}
 
-    # Normal can handle any real-valued data
     results["Normal"] = ad_normal(used_data)
-
     # Positive-only distributions
     if np.all(used_data > 0):
         results["Log-normal"] = ad_lognormal(used_data)
@@ -204,8 +173,6 @@ def compare_distributions(x, remove_outliers=False, z_threshold=3.0, xmin=None, 
     results = dict(sorted(results.items(), key=lambda item: item[1]))
 
     return results, used_data
-
-
 def print_interpretation(results):
     
     print("\nDistribution ranking by Anderson-Darling statistic:")
@@ -260,10 +227,8 @@ if __name__ == "__main__":
 #Classification
 # ==================================
 
-
 # Distance matrix
 def lp_distance_matrix(XA, XB=None, p=1.5):
-    
     XA = np.asarray(XA, dtype=float)
     XB = XA if XB is None else np.asarray(XB, dtype=float)
 
@@ -271,9 +236,7 @@ def lp_distance_matrix(XA, XB=None, p=1.5):
     D = np.sum(diff, axis=2) ** (1.0 / p)
     return D
 
-
 def silverman_bandwidth(X):
-    
     X = np.asarray(X, dtype=float)
     n = X.shape[0]
 
@@ -285,15 +248,11 @@ def silverman_bandwidth(X):
 
     return max(phi, 1e-12)
 
-
 def gaussian_weights(distances, phi):
-    
     distances = np.asarray(distances, dtype=float)
     return np.exp(-(distances ** 2) / (2.0 * (phi ** 2)))
 
-
 def confidence_interval_90(values):
-    
     values = np.asarray(values, dtype=float)
     n = len(values)
 
@@ -310,7 +269,6 @@ def confidence_interval_90(values):
     return mean_val, lower, upper, sigma
 
 
-
 # Weighted KNN Classifier
 #----------------------------------
 @dataclass
@@ -320,9 +278,6 @@ class WeightedKNN:
     phi: float = None
 
     def fit(self, X, y):
-        """
-        Store training data.
-        """
         self.X_train = np.asarray(X, dtype=float)
         self.y_train = np.asarray(y)
 
@@ -342,7 +297,6 @@ class WeightedKNN:
         return self
 
     def _predict_one_with_details(self, x):
-       
         x = np.asarray(x, dtype=float).reshape(1, -1)
 
         distances = lp_distance_matrix(x, self.X_train, p=self.p).ravel()
@@ -369,13 +323,11 @@ class WeightedKNN:
 
     def predict(self, X):
         # Class labeling
-
         X = np.asarray(X, dtype=float)
         preds = [self._predict_one_with_details(x)[0] for x in X]
         return np.asarray(preds)
 
     def predict_confidence(self, X):
-       
         X = np.asarray(X, dtype=float)
         conf = []
 
@@ -387,7 +339,6 @@ class WeightedKNN:
         return np.asarray(conf)
 
     def predict_posterior_confidence(self, X):
-       
         X = np.asarray(X, dtype=float)
         conf = []
 
@@ -398,12 +349,9 @@ class WeightedKNN:
         return np.asarray(conf)
 
 
-
 # Medoid selection and MDM
 # ------------------------------------
-
 def class_medoid(X_class, p=1.5):
-    
     X_class = np.asarray(X_class, dtype=float)
 
     if len(X_class) == 0:
@@ -419,7 +367,6 @@ def class_medoid(X_class, p=1.5):
 
 
 def compute_class_medoids(X, y, p=1.5):
-    
     X = np.asarray(X, dtype=float)
     y = np.asarray(y)
 
@@ -431,7 +378,6 @@ def compute_class_medoids(X, y, p=1.5):
 
 
 def mean_distance_of_medoid(X, y, medoids, p=1.5):
-   
     X = np.asarray(X, dtype=float)
     y = np.asarray(y)
 
@@ -444,10 +390,8 @@ def mean_distance_of_medoid(X, y, medoids, p=1.5):
     return float(np.mean(distances))
 
 
-
 # Cross validation and performance metrics
 def cross_validate_knn(X, y, k=5, p=1.5, n_splits=5, random_state=42):
-    
     X = np.asarray(X, dtype=float)
     y = np.asarray(y)
 
@@ -506,8 +450,6 @@ def cross_validate_knn(X, y, k=5, p=1.5, n_splits=5, random_state=42):
 
     return results
 
-
-
 # Threshold interpretation
 def interpret_classifier_performance(f1_cv, mdm_cv, ci90_width):
     
@@ -517,21 +459,15 @@ def interpret_classifier_performance(f1_cv, mdm_cv, ci90_width):
         "Stability": "Pass" if ci90_width < 0.15 else "Fail"
     }
 
-
-
 # Global Sensitivity Analysis (SRCC)
 # -------------------------------------
-
 def global_sensitivity_srcc(X, y, model):
-    
     X = np.asarray(X, dtype=float)
     y = np.asarray(y)
 
     classes = np.unique(y)
     n_features = X.shape[1]
-
     records = []
-
     confidences = model.predict_posterior_confidence(X)
 
     for c in classes:
@@ -570,13 +506,9 @@ def global_sensitivity_srcc(X, y, model):
 
     return pd.DataFrame(records)
 
-
-
 # Noise robustness reliability assessment
 # ----------------------------------------
-
 def add_multiplicative_gaussian_noise(X, sigma, random_state=None):
-   
     rng = np.random.default_rng(random_state)
     X = np.asarray(X, dtype=float)
 
@@ -584,14 +516,12 @@ def add_multiplicative_gaussian_noise(X, sigma, random_state=None):
     X_noisy = X * (1.0 + noise)
     return X_noisy
 
-
 def noise_reliability_assessment(
     X, y, k=5, p=1.5, noise_levels=None, M=50, random_state=42
 ):
     
     if noise_levels is None:
         noise_levels = np.linspace(0.0, 0.10, 6)
-
     X = np.asarray(X, dtype=float)
     y = np.asarray(y)
 
@@ -685,13 +615,9 @@ def noise_reliability_assessment(
 
     return summary
 
-
-
 # Outlier filtering
 # -----------------------------------
-
 def filter_outliers_by_feature_variation(X, threshold_ratio=0.02):
-    
     X = np.asarray(X, dtype=float)
 
     row_mean = np.mean(np.abs(X), axis=1)
@@ -701,11 +627,8 @@ def filter_outliers_by_feature_variation(X, threshold_ratio=0.02):
     keep_mask = variation <= threshold_ratio
     return keep_mask, variation
 
-
-
 # Classifier pipeline
 # -----------------------------------
-
 def run_knn_pipeline(
     X, y,
     k=5,
@@ -715,7 +638,6 @@ def run_knn_pipeline(
     noise_levels=None,
     M=50
 ):
-    
     X = np.asarray(X, dtype=float)
     y = np.asarray(y)
 
@@ -731,9 +653,7 @@ def run_knn_pipeline(
     )
 
     medoids = compute_class_medoids(X, y, p=p)
-
     sensitivity_df = global_sensitivity_srcc(X, y, model)
-
     reliability = noise_reliability_assessment(
         X=X,
         y=y,
@@ -790,8 +710,7 @@ if __name__ == "__main__":
         noise_levels=np.linspace(0.0, 0.10, 6),
         M=50
     )
-
-
+    
     print("\n=== Cross-Validation Results ===")
     cv = results["cv_results"]
     print(f"Score_CV: {cv['Score_CV']:.4f}   CI90: {cv['Score_CI90']}")
