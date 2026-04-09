@@ -409,19 +409,15 @@ def cross_validate_knn(X, y, k=5, p=1.5, n_splits=5, random_state=42):
         model.fit(X_train, y_train)
 
         y_pred = model.predict(X_test)
-
-        # Eq. 7a: classification score
+        
         score_i = np.mean(y_pred == y_test)
         fold_scores.append(score_i)
-
-        # Eq. 9a and 9b: weighted F1 for multi-class classification
+        
         f1_i = f1_score(y_test, y_pred, average="weighted", zero_division=0)
         fold_f1.append(f1_i)
-
-        # Eq. 8a and 8b: MDM on test set using training medoids
+        
         medoids = compute_class_medoids(X_train, y_train, p=p)
-
-        # Only evaluate MDM for test samples whose class exists in training
+        
         valid_mask = np.array([yi in medoids for yi in y_test])
         mdm_i = mean_distance_of_medoid(X_test[valid_mask], y_test[valid_mask], medoids, p=p)
         fold_mdm.append(mdm_i)
@@ -539,8 +535,7 @@ def noise_reliability_assessment(
             seed = int(rng.integers(0, 1_000_000_000))
             X_noisy = add_multiplicative_gaussian_noise(X, sigma=sigma, random_state=seed)
             pred_noisy = model.predict(X_noisy)
-
-            # Eq. 16
+            
             R_sigma = np.mean(pred_noisy == baseline_pred)
             R_values.append(R_sigma)
 
