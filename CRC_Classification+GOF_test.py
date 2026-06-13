@@ -7,6 +7,124 @@ from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
 
+# Data Cleaning Functions
+# ==================================
+
+def remove_duplicate_rows(x):
+    x = np.asarray(x)
+    return np.unique(x)
+
+
+def trim_percentiles(x, lower=0.025, upper=0.975):
+    x = np.asarray(x, dtype=float)
+
+    q_low = np.quantile(x, lower)
+    q_high = np.quantile(x, upper)
+
+    keep_mask = (x >= q_low) & (x <= q_high)
+    trimmed_x = x[keep_mask]
+
+    return trimmed_x, keep_mask, q_low, q_high
+
+
+def identify_extreme_percentiles(x, lower=0.05, upper=0.95):
+    x = np.asarray(x, dtype=float)
+
+    q_low = np.quantile(x, lower)
+    q_high = np.quantile(x, upper)
+
+    flag_mask = (x < q_low) | (x > q_high)
+
+    return flag_mask, q_low, q_high
+
+
+def winsorize_percentiles(x, lower=0.05, upper=0.95):
+    x = np.asarray(x, dtype=float)
+
+    q_low = np.quantile(x, lower)
+    q_high = np.quantile(x, upper)
+
+    x_w = np.clip(x, q_low, q_high)
+
+    return x_w, q_low, q_high
+
+
+def clean_distribution_data(
+        x,
+        trim_lower=0.025,
+        trim_upper=0.975,
+        winsor_lower=0.05,
+        winsor_upper=0.95
+):
+    # Remove duplicates
+    x = remove_duplicate_rows(x)
+
+    # Two-sided trimming
+    trimmed_x, keep_mask, q025, q975 = trim_percentiles(
+        x,
+        lower=trim_lower,
+        upper=trim_upper
+    )
+
+    # Flag extreme observations
+    flagged_mask, q05, q95 = identify_extreme_percentiles(
+        trimmed_x,
+        lower=winsor_lower,
+        upper=winsor_upper
+    )
+
+    # Winsorisation
+    winsorized_x, _, _ = winsorize_percentiles(
+        trimmed_x,
+        lower=winsor_lower,
+        upper=winsor_upper
+    )
+
+    report = {
+        "Q025": q025,
+        "Q975": q975,
+        "Q05": q05,
+        "Q95": q95,
+        "n_original": len(x),
+        "n_trimmed": len(trimmed_x),
+        "n_flagged": int(np.sum(flagged_mask)),
+        "trimmed_percent":
+            100 * (len(x) - len(trimmed_x)) / len(x)
+    }
+
+    return winsorized_x, report
+
+
+# ==================================
+# Example Usage
+# ==================================
+
+if __name__ == "__main__":
+
+    data = np.array([
+        12.1, 11.8, 12.5, 13.0, 12.2,
+        11.9, 12.8, 12.4, 12.0, 12.6,
+        100.0
+    ])
+
+    cleaned_data, report = clean_distribution_data(data)
+
+    print("\n=== Data Cleaning Report ===")
+
+    print(f"Original observations : {report['n_original']}")
+    print(f"After trimming        : {report['n_trimmed']}")
+    print(f"Flagged observations  : {report['n_flagged']}")
+    print(f"Trimmed percentage    : {report['trimmed_percent']:.2f}%")
+
+    print(f"\nQ2.5  = {report['Q025']:.4f}")
+    print(f"Q97.5 = {report['Q975']:.4f}")
+
+    print(f"\nQ5    = {report['Q05']:.4f}")
+    print(f"Q95   = {report['Q95']:.4f}")
+
+    print("\nCleaned data:")
+    print(cleaned_data)
+
 #GOF
 # ==================================
 
