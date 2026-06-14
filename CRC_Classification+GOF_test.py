@@ -6,6 +6,20 @@ from scipy import stats
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import (
+    silhouette_score,
+    davies_bouldin_score,
+    calinski_harabasz_score,
+    adjusted_rand_score,
+    normalized_mutual_info_score,
+    confusion_matrix
+)
+from scipy.optimize import linear_sum_assignment
+from dataclasses import dataclass
+from sklearn.model_selection import StratifiedKFold
+
 
 # Data Cleaning Functions
 # ==================================
@@ -337,6 +351,667 @@ if __name__ == "__main__":
     best_value = results[best_name]
     print(f"\nBest-fitting distribution: {best_name} with A^2 = {best_value:.6f}")
 
+# Class Labelling
+# =====================================================
+
+def assign_act_classes(duration, pressure):
+
+    duration = np.asarray(duration, dtype=float)
+    pressure = np.asarray(pressure, dtype=float)
+
+    labels = []
+
+    for d, p in zip(duration, pressure):
+
+        if (p <= 1.0) and (d <= 10.0):
+            labels.append("ACT-1")
+
+        elif (p <= 1.0) and (d > 10.0):
+            labels.append("ACT-2")
+
+        elif (p > 1.0) and (p < 3.0) and (d <= 10.0):
+            labels.append("ACT-3")
+
+        elif (p >= 3.0) and (d <= 10.0):
+            labels.append("ACT-4")
+
+        else:
+            labels.append("Unclassified")
+
+    return np.asarray(labels)
+
+
+def make_labels_for_k_classes(duration, pressure, k):
+    
+    duration = np.asarray(duration, dtype=float)
+    pressure = np.asarray(pressure, dtype=float)
+
+    labels = []
+
+    for d, p in zip(duration, pressure):
+
+        if k == 2:
+            if p <= 1.0:
+                labels.append("Atmospheric")
+            else:
+                labels.append("Pressurised")
+
+        elif k == 3:
+            if p <= 1.0:
+                labels.append("Atmospheric")
+            elif 1.0 < p < 3.0:
+                labels.append("Medium-pressure")
+            else:
+                labels.append("High-pressure")
+
+        elif k == 4:
+            if (p <= 1.0) and (d <= 10.0):
+                labels.append("ACT-1")
+            elif (p <= 1.0) and (d > 10.0):
+                labels.append("ACT-2")
+            elif (1.0 < p < 3.0) and (d <= 10.0):
+                labels.append("ACT-3")
+            elif (p >= 3.0) and (d <= 10.0):
+                labels.append("ACT-4")
+            else:
+                labels.append("Unclassified")
+
+        elif k == 5:
+            if (p <= 1.0) and (d <= 10.0):
+                labels.append("Atmospheric-short")
+            elif (p <= 1.0) and (d > 10.0):
+                labels.append("Atmospheric-long")
+            elif (1.0 < p < 3.0) and (d <= 10.0):
+                labels.append("Medium-short")
+            elif (1.0 < p < 3.0) and (d > 10.0):
+                labels.append("Medium-long")
+            elif (p >= 3.0) and (d <= 10.0):
+                labels.append("High-short")
+            else:
+                labels.append("Unclassified")
+
+        elif k == 6:
+            if (p <= 1.0) and (d <= 10.0):
+                labels.append("Atmospheric-short")
+            elif (p <= 1.0) and (d > 10.0):
+                labels.append("Atmospheric-long")
+            elif (1.0 < p < 3.0) and (d <= 10.0):
+                labels.append("Medium-short")
+            elif (1.0 < p < 3.0) and (d > 10.0):
+                labels.append("Medium-long")
+            elif (p >= 3.0) and (d <= 10.0):
+                labels.append("High-short")
+            elif (p >= 3.0) and (d > 10.0):
+                labels.append("High-long")
+            else:
+                labels.append("Unclassified")
+
+        else:
+            raise ValueError("k must be between 2 and 6.")
+
+    return np.asarray(labels)
+
+
+def evaluate_label_structure(X, labels):
+  
+    labels = np.asarray(labels)
+
+    valid_mask = labels != "Unclassified"
+    X_valid = X[valid_mask]
+    labels_valid = labels[valid_mask]
+
+    if len(np.unique(labels_valid)) < 2:
+        raise ValueError("At least two classes are required.")
+
+    encoded = LabelEncoder().fit_transform(labels_valid)
+
+    silhouette = silhouette_score(X_valid, encoded)
+    dbi = davies_bouldin_score(X_valid, encoded)
+    chi = calinski_harabasz_score(X_valid, encoded)
+
+    return silhouette, dbi, chi, X_valid, labels_valid
+
+
+def evaluate_all_class_structures(duration, pressure):
+   
+    X = np.column_stack([pressure, duration])
+
+    structure_names = {
+        2: "Atmospheric-pressure; Pressurised",
+        3: "Atmospheric-pressure; Medium-pressure; High-pressure",
+        4: "Atmospheric–short-duration; Atmospheric–long-duration; Medium-pressure–short-duration; High-pressure–short-duration",
+        5: "Atmospheric-pressure–short-duration; Atmospheric-pressure–long-duration; Medium-pressure–short-duration; Medium-pressure–long-duration; High-pressure–short-duration",
+        6: "Full pressure and duration combination"
+    }
+
+    rows = []
+
+    for k in [2, 3, 4, 5, 6]:
+
+        labels = make_labels_for_k_classes(duration, pressure, k)
+
+        silhouette, dbi, chi, _, _ = evaluate_label_structure(X, labels)
+
+        rows.append({
+            "ACT Classes": k,
+            "Structure assumption": structure_names[k],
+            "Silhouette": silhouette,
+            "DBI": dbi,
+            "CHI": chi
+        })
+
+    return pd.DataFrame(rows)
+
+
+def match_kmeans_clusters_to_act(y_true, y_cluster):
+ 
+    cm = confusion_matrix(y_true, y_cluster)
+
+    row_ind, col_ind = linear_sum_assignment(-cm)
+
+    mapping = {}
+
+    for r, c in zip(row_ind, col_ind):
+        mapping[c] = r
+
+    mapped_clusters = np.array([mapping[c] for c in y_cluster])
+
+    return mapped_clusters
+
+# K-mean Validation
+#==============================
+
+def validate_kmeans_against_act(duration, pressure):
+    
+    X = np.column_stack([pressure, duration])
+
+    act_labels = assign_act_classes(duration, pressure)
+
+    valid_mask = act_labels != "Unclassified"
+
+    X_valid = X[valid_mask]
+    act_labels_valid = act_labels[valid_mask]
+
+    encoder = LabelEncoder()
+    y_true = encoder.fit_transform(act_labels_valid)
+
+    kmeans = KMeans(
+        n_clusters=4,
+        random_state=42,
+        n_init=20
+    )
+
+    y_cluster = kmeans.fit_predict(X_valid)
+
+    y_cluster_mapped = match_kmeans_clusters_to_act(
+        y_true,
+        y_cluster
+    )
+
+    overall_agreement = 100.0 * np.mean(y_true == y_cluster_mapped)
+
+    ari = adjusted_rand_score(y_true, y_cluster)
+    nmi = normalized_mutual_info_score(y_true, y_cluster)
+
+    rows = []
+
+    for class_id in np.unique(y_true):
+
+        mask = y_true == class_id
+
+        class_agreement = 100.0 * np.mean(
+            y_true[mask] == y_cluster_mapped[mask]
+        )
+
+        rows.append({
+            "Labeled ACT": encoder.inverse_transform([class_id])[0],
+            "K-means cluster": f"Cluster-{class_id + 1}",
+            "Agreement (%)": class_agreement
+        })
+
+    table_s5 = pd.DataFrame(rows)
+
+    validation_metrics = pd.DataFrame({
+        "Metric": [
+            "Overall agreement (%)",
+            "ARI",
+            "NMI"
+        ],
+        "Value": [
+            overall_agreement,
+            ari,
+            nmi
+        ]
+    })
+
+    return table_s5, validation_metrics
+
+
+# =====================================================
+# Example Usage
+# =====================================================
+
+if __name__ == "__main__":
+
+    np.random.seed(42)
+
+    n = 250
+
+    # ACT-1: atmospheric pressure, short duration
+    duration_1 = np.random.uniform(1, 10, n)
+    pressure_1 = np.random.normal(1.0, 0.08, n)
+
+    # ACT-2: atmospheric pressure, long duration
+    duration_2 = np.random.uniform(11, 50, n)
+    pressure_2 = np.random.normal(1.0, 0.08, n)
+
+    # ACT-3: medium pressure, short duration
+    duration_3 = np.random.uniform(1, 10, n)
+    pressure_3 = np.random.uniform(1.2, 2.8, n)
+
+    # ACT-4: high pressure, short duration
+    duration_4 = np.random.uniform(1, 10, n)
+    pressure_4 = np.random.uniform(3.0, 5.0, n)
+
+    duration = np.concatenate([
+        duration_1,
+        duration_2,
+        duration_3,
+        duration_4
+    ])
+
+    pressure = np.concatenate([
+        pressure_1,
+        pressure_2,
+        pressure_3,
+        pressure_4
+    ])
+
+    pressure = np.clip(pressure, 0, 6)
+
+    table_s4 = evaluate_all_class_structures(
+        duration,
+        pressure
+    )
+
+    table_s5, validation_metrics = validate_kmeans_against_act(
+        duration,
+        pressure
+    )
+
+    print("\nTable S4. Labelling class evaluation considering non-constant variables")
+    print(table_s4.round({
+        "Silhouette": 2,
+        "DBI": 2,
+        "CHI": 0
+    }))
+
+    print("\nTable S5. Compared K-means clusters and 4-ACT labels")
+    print(table_s5.round({
+        "Agreement (%)": 0
+    }))
+
+    print("\nValidation metrics")
+    print(validation_metrics.round({
+        "Value": 2
+    }))
+
+# KNN Hyperparameter Tuning
+# =====================================================
+
+def lp_distance_matrix(XA, XB=None, p=1.5):
+    
+    XA = np.asarray(XA, dtype=float)
+    XB = XA if XB is None else np.asarray(XB, dtype=float)
+
+    diff = np.abs(XA[:, None, :] - XB[None, :, :]) ** p
+    D = np.sum(diff, axis=2) ** (1.0 / p)
+
+    return D
+
+
+def silverman_bandwidth(X):
+    
+    X = np.asarray(X, dtype=float)
+    n = X.shape[0]
+
+    if n < 2:
+        raise ValueError("At least two samples are required.")
+
+    s_hat = np.mean(np.std(X, axis=0, ddof=1))
+    phi = 1.6 * s_hat * (n ** (-1.0 / 5.0))
+
+    return max(phi, 1e-12)
+
+
+def compute_knn_weights(distances, weighting="gaussian", phi=None, epsilon=1e-12):
+   
+    distances = np.asarray(distances, dtype=float)
+
+    if weighting == "uniform":
+
+        weights = np.ones_like(distances)
+
+    elif weighting == "inverse-distance":
+
+        weights = 1.0 / (distances + epsilon)
+
+    elif weighting == "gaussian":
+
+        if phi is None:
+            raise ValueError("phi is required for Gaussian weighting.")
+
+        weights = np.exp(
+            -(distances ** 2) / (2.0 * (phi ** 2))
+        )
+
+    else:
+
+        raise ValueError(
+            "weighting must be 'uniform', 'inverse-distance', or 'gaussian'."
+        )
+
+    return weights
+
+
+@dataclass
+class TunableWeightedKNN:
+
+    k: int = 5
+    p: float = 1.5
+    weighting: str = "gaussian"
+    phi: float = None
+    epsilon: float = 1e-12
+
+    def fit(self, X, y):
+
+        self.X_train = np.asarray(X, dtype=float)
+        self.y_train = np.asarray(y)
+
+        if self.X_train.ndim != 2:
+            raise ValueError("X must be a 2D array.")
+
+        if len(self.X_train) != len(self.y_train):
+            raise ValueError("X and y must have the same number of samples.")
+
+        self.classes_ = np.unique(self.y_train)
+
+        if self.phi is None:
+            self.phi_ = silverman_bandwidth(self.X_train)
+        else:
+            self.phi_ = float(self.phi)
+
+        return self
+
+    def _predict_one(self, x):
+
+        x = np.asarray(x, dtype=float).reshape(1, -1)
+
+        distances = lp_distance_matrix(
+            x,
+            self.X_train,
+            p=self.p
+        ).ravel()
+
+        nn_idx = np.argsort(distances)[:self.k]
+
+        nn_distances = distances[nn_idx]
+        nn_labels = self.y_train[nn_idx]
+
+        nn_weights = compute_knn_weights(
+            nn_distances,
+            weighting=self.weighting,
+            phi=self.phi_,
+            epsilon=self.epsilon
+        )
+
+        class_scores = {}
+
+        for c in self.classes_:
+            class_scores[c] = np.sum(
+                nn_weights[nn_labels == c]
+            )
+
+        predicted_class = max(
+            class_scores,
+            key=class_scores.get
+        )
+
+        return predicted_class
+
+    def predict(self, X):
+
+        X = np.asarray(X, dtype=float)
+
+        predictions = [
+            self._predict_one(x)
+            for x in X
+        ]
+
+        return np.asarray(predictions)
+
+
+def confidence_interval_90(values):
+    
+    values = np.asarray(values, dtype=float)
+    n = len(values)
+
+    mean_value = float(np.mean(values))
+
+    if n < 2:
+        return mean_value, mean_value, mean_value, 0.0
+
+    sigma = float(np.std(values, ddof=1))
+    margin = 1.645 * sigma / np.sqrt(n)
+
+    lower = mean_value - margin
+    upper = mean_value + margin
+
+    return mean_value, lower, upper, sigma
+
+
+def cross_validate_tunable_knn(
+        X,
+        y,
+        k=5,
+        p=1.5,
+        weighting="gaussian",
+        n_splits=5,
+        random_state=42
+):
+
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y)
+
+    skf = StratifiedKFold(
+        n_splits=n_splits,
+        shuffle=True,
+        random_state=random_state
+    )
+
+    fold_f1 = []
+    fold_accuracy = []
+
+    for train_idx, test_idx in skf.split(X, y):
+
+        X_train = X[train_idx]
+        X_test = X[test_idx]
+
+        y_train = y[train_idx]
+        y_test = y[test_idx]
+
+        model = TunableWeightedKNN(
+            k=k,
+            p=p,
+            weighting=weighting
+        )
+
+        model.fit(X_train, y_train)
+
+        y_pred = model.predict(X_test)
+
+        acc = np.mean(y_pred == y_test)
+
+        f1 = f1_score(
+            y_test,
+            y_pred,
+            average="weighted",
+            zero_division=0
+        )
+
+        fold_accuracy.append(acc)
+        fold_f1.append(f1)
+
+    acc_mean, acc_low, acc_high, acc_sigma = confidence_interval_90(
+        fold_accuracy
+    )
+
+    f1_mean, f1_low, f1_high, f1_sigma = confidence_interval_90(
+        fold_f1
+    )
+
+    return {
+        "k": k,
+        "p": p,
+        "weighting": weighting,
+        "fold_accuracy": fold_accuracy,
+        "fold_f1": fold_f1,
+        "Accuracy_CV": acc_mean,
+        "Accuracy_CI90_low": acc_low,
+        "Accuracy_CI90_high": acc_high,
+        "Accuracy_sigma": acc_sigma,
+        "F1_CV": f1_mean,
+        "F1_CI90_low": f1_low,
+        "F1_CI90_high": f1_high,
+        "F1_sigma": f1_sigma
+    }
+
+
+def run_knn_hyperparameter_tuning(
+        X,
+        y,
+        k_values=None,
+        p_values=None,
+        weighting_functions=None,
+        n_splits=5,
+        random_state=42
+):
+   
+    if k_values is None:
+        k_values = list(range(3, 16, 2))
+
+    if p_values is None:
+        p_values = [1.0, 1.5, 2.0]
+
+    if weighting_functions is None:
+        weighting_functions = [
+            "uniform",
+            "inverse-distance",
+            "gaussian"
+        ]
+
+    rows = []
+
+    for k in k_values:
+
+        for p in p_values:
+
+            for weighting in weighting_functions:
+
+                result = cross_validate_tunable_knn(
+                    X=X,
+                    y=y,
+                    k=k,
+                    p=p,
+                    weighting=weighting,
+                    n_splits=n_splits,
+                    random_state=random_state
+                )
+
+                rows.append(result)
+
+    results_df = pd.DataFrame(rows)
+
+    results_df = results_df.sort_values(
+        by=["F1_CV", "Accuracy_CV"],
+        ascending=[False, False]
+    ).reset_index(drop=True)
+
+    return results_df
+
+
+# =====================================================
+# Example Usage
+# =====================================================
+
+if __name__ == "__main__":
+
+    np.random.seed(42)
+
+    n = 250
+
+    # ACT-1: atmospheric pressure, short duration
+    duration_1 = np.random.uniform(1, 10, n)
+    pressure_1 = np.random.normal(1.0, 0.08, n)
+    co2_1 = np.random.normal(20, 3, n)
+
+    # ACT-2: atmospheric pressure, long duration
+    duration_2 = np.random.uniform(11, 50, n)
+    pressure_2 = np.random.normal(1.0, 0.08, n)
+    co2_2 = np.random.normal(35, 4, n)
+
+    # ACT-3: medium pressure, short duration
+    duration_3 = np.random.uniform(1, 10, n)
+    pressure_3 = np.random.uniform(1.2, 2.8, n)
+    co2_3 = np.random.normal(45, 5, n)
+
+    # ACT-4: high pressure, short duration
+    duration_4 = np.random.uniform(1, 10, n)
+    pressure_4 = np.random.uniform(3.0, 5.0, n)
+    co2_4 = np.random.normal(60, 6, n)
+
+    X = np.vstack([
+        np.column_stack([duration_1, pressure_1, co2_1]),
+        np.column_stack([duration_2, pressure_2, co2_2]),
+        np.column_stack([duration_3, pressure_3, co2_3]),
+        np.column_stack([duration_4, pressure_4, co2_4])
+    ])
+
+    y = np.array(
+        ["ACT-1"] * n +
+        ["ACT-2"] * n +
+        ["ACT-3"] * n +
+        ["ACT-4"] * n
+    )
+
+    results = run_knn_hyperparameter_tuning(
+        X=X,
+        y=y,
+        k_values=list(range(3, 16, 2)),
+        p_values=[1.0, 1.5, 2.0],
+        weighting_functions=[
+            "uniform",
+            "inverse-distance",
+            "gaussian"
+        ],
+        n_splits=5,
+        random_state=42
+    )
+
+    print("\nKNN Hyperparameter Tuning Results")
+    print(results[
+        [
+            "k",
+            "p",
+            "weighting",
+            "F1_CV",
+            "F1_CI90_low",
+            "F1_CI90_high",
+            "Accuracy_CV"
+        ]
+    ].round(4))
+
+    best = results.iloc[0]
 
 #Classification
 # ==================================
