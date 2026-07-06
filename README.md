@@ -32,7 +32,6 @@ CRC_Classification/
 │   ├── robustness.py
 │   ├── sensitivity.py
 │   └── validation.py
-├── requirements.txt
 ├── README.md
 └── LICENSE
 ```
