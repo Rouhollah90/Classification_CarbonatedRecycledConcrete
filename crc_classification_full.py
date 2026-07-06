@@ -1,24 +1,22 @@
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
-from dataclasses import dataclass
-from scipy.stats import spearmanr
 from scipy import stats
-from sklearn.metrics import f1_score
-from sklearn.model_selection import StratifiedKFold
-from sklearn.preprocessing import LabelEncoder
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import (
-    silhouette_score,
-    davies_bouldin_score,
-    calinski_harabasz_score,
-    adjusted_rand_score,
-    normalized_mutual_info_score,
-    confusion_matrix
-)
 from scipy.optimize import linear_sum_assignment
-from dataclasses import dataclass
+from scipy.stats import spearmanr
+from sklearn.cluster import KMeans
+from sklearn.metrics import (
+    adjusted_rand_score,
+    calinski_harabasz_score,
+    confusion_matrix,
+    davies_bouldin_score,
+    f1_score,
+    normalized_mutual_info_score,
+    silhouette_score,
+)
 from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import LabelEncoder
 
 
 # Data Cleaning Functions
@@ -113,7 +111,8 @@ def clean_distribution_data(
 # Example Usage
 # ==================================
 
-if __name__ == "__main__":
+def demo_data_cleaning():
+    """Run a small data-cleaning example."""
 
     data = np.array([
         12.1, 11.8, 12.5, 13.0, 12.2,
@@ -313,7 +312,8 @@ def print_interpretation(results):
 # -------------------------
 # Example usage
 # -------------------------
-if __name__ == "__main__":
+def demo_distribution_fitting():
+    """Run a small Anderson-Darling distribution comparison example."""
     
     data = np.array([12.1, 11.8, 12.5, 13.0, 12.2, 11.9, 12.8, 12.4, 12.0, 12.6])
 
@@ -591,7 +591,8 @@ def validate_kmeans_against_act(duration, pressure):
 # Example Usage
 # =====================================================
 
-if __name__ == "__main__":
+def demo_act_validation():
+    """Run a synthetic ACT label and K-means validation example."""
 
     np.random.seed(42)
 
@@ -734,6 +735,12 @@ class TunableWeightedKNN:
         if len(self.X_train) != len(self.y_train):
             raise ValueError("X and y must have the same number of samples.")
 
+        if self.k < 1:
+            raise ValueError("k must be at least 1.")
+
+        if self.k > len(self.X_train):
+            raise ValueError("k cannot be larger than the number of training samples.")
+
         self.classes_ = np.unique(self.y_train)
 
         if self.phi is None:
@@ -781,7 +788,7 @@ class TunableWeightedKNN:
 
     def predict(self, X):
 
-        X = np.asarray(X, dtype=float)
+        X = np.atleast_2d(np.asarray(X, dtype=float))
 
         predictions = [
             self._predict_one(x)
@@ -804,8 +811,8 @@ def confidence_interval_90(values):
     sigma = float(np.std(values, ddof=1))
     margin = 1.645 * sigma / np.sqrt(n)
 
-    lower = mean_value - margin
-    upper = mean_value + margin
+    lower = float(mean_value - margin)
+    upper = float(mean_value + margin)
 
     return mean_value, lower, upper, sigma
 
@@ -944,7 +951,8 @@ def run_knn_hyperparameter_tuning(
 # Example Usage
 # =====================================================
 
-if __name__ == "__main__":
+def demo_hyperparameter_tuning():
+    """Run weighted KNN hyperparameter tuning on synthetic data."""
 
     np.random.seed(42)
 
@@ -1053,8 +1061,8 @@ def confidence_interval_90(values):
     sigma = float(np.std(values, ddof=1))
     margin = 1.645 * sigma / np.sqrt(n)
 
-    lower = mean_val - margin
-    upper = mean_val + margin
+    lower = float(mean_val - margin)
+    upper = float(mean_val + margin)
     return mean_val, lower, upper, sigma
 
 
@@ -1075,6 +1083,12 @@ class WeightedKNN:
 
         if len(self.X_train) != len(self.y_train):
             raise ValueError("X and y must have the same number of samples.")
+
+        if self.k < 1:
+            raise ValueError("k must be at least 1.")
+
+        if self.k > len(self.X_train):
+            raise ValueError("k cannot be larger than the number of training samples.")
 
         self.classes_ = np.unique(self.y_train)
 
@@ -1112,12 +1126,12 @@ class WeightedKNN:
 
     def predict(self, X):
         # Class labeling
-        X = np.asarray(X, dtype=float)
+        X = np.atleast_2d(np.asarray(X, dtype=float))
         preds = [self._predict_one_with_details(x)[0] for x in X]
         return np.asarray(preds)
 
     def predict_confidence(self, X):
-        X = np.asarray(X, dtype=float)
+        X = np.atleast_2d(np.asarray(X, dtype=float))
         conf = []
 
         for x in X:
@@ -1128,7 +1142,7 @@ class WeightedKNN:
         return np.asarray(conf)
 
     def predict_posterior_confidence(self, X):
-        X = np.asarray(X, dtype=float)
+        X = np.atleast_2d(np.asarray(X, dtype=float))
         conf = []
 
         for x in X:
@@ -1465,7 +1479,8 @@ def run_knn_pipeline(
 # -------------------------
 # Example usage
 # -------------------------
-if __name__ == "__main__":
+def demo_knn_pipeline():
+    """Run the end-to-end weighted KNN classification pipeline demo."""
 
     rng = np.random.default_rng(42)
 
@@ -1516,3 +1531,12 @@ if __name__ == "__main__":
           f"-> {results['reliability']['RI_level']}")
     print(f"Reliability slope (lambda): {results['reliability']['lambda']:.4f} "
           f"-> {results['reliability']['lambda_level']}")
+
+
+def main():
+    """Run the default demonstration for command-line use."""
+    demo_knn_pipeline()
+
+
+if __name__ == "__main__":
+    main()
