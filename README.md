@@ -20,6 +20,7 @@ private dataset.
 CRC_Classification/
 ├── crc_classification.py
 ├── crc_classification_full.py
+├── crc_decision_tree_classification.py
 ├── crc_knn_classification/
 │   ├── __init__.py
 │   ├── data_cleaning.py
@@ -32,6 +33,8 @@ CRC_Classification/
 │   ├── robustness.py
 │   ├── sensitivity.py
 │   └── validation.py
+├── crc_random_forest_classification.py
+├── crc_rbf_svm_classification.py
 ├── requirements.txt
 ├── README.md
 └── LICENSE
@@ -41,6 +44,9 @@ CRC_Classification/
 
 - `crc_classification.py` - command-line runner for the default demo
 - `crc_classification_full.py` - standalone single-file version of the workflow
+- `crc_decision_tree_classification.py` - standalone Decision Tree classifier demo
+- `crc_random_forest_classification.py` - standalone Random Forest classifier demo
+- `crc_rbf_svm_classification.py` - standalone RBF-SVM classifier demo
 - `crc_knn_classification/knn.py` - weighted KNN and tunable weighted KNN models
 - `crc_knn_classification/goodness_of_fit.py` - distribution goodness-of-fit checks
 - `crc_knn_classification/labeling.py` - ACT class labelling and label evaluation
@@ -77,6 +83,17 @@ python crc_classification.py
 
 The script prints cross-validation metrics, medoids, sensitivity results, and
 noise reliability results.
+
+Run the alternative classifier demos:
+
+```bash
+python crc_decision_tree_classification.py
+python crc_random_forest_classification.py
+python crc_rbf_svm_classification.py
+```
+
+These scripts use the same synthetic CRC-style dataset and report
+cross-validation, sensitivity, and noise reliability results for each model.
 
 ## Using Your Own Data
 
