@@ -7,7 +7,7 @@ from sklearn.base import clone
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeClassifier, export_text
 
 
 def generate_synthetic_crc_data(random_state=42, n_per_class=40):
@@ -167,11 +167,40 @@ def noise_reliability_assessment(
     return pd.DataFrame(rows)
 
 
+def terminal_leaf_representatives(model, X, y):
+    fitted_model = clone(model).fit(X, y)
+    leaf_ids = fitted_model.apply(X)
+    rows = []
+
+    for leaf_id in np.unique(leaf_ids):
+        leaf_mask = leaf_ids == leaf_id
+        X_leaf = X[leaf_mask]
+        y_leaf = y[leaf_mask]
+        centroid = np.mean(X_leaf, axis=0)
+        representative_local_index = np.argmin(np.linalg.norm(X_leaf - centroid, axis=1))
+        representative_global_index = np.where(leaf_mask)[0][representative_local_index]
+        labels, counts = np.unique(y_leaf, return_counts=True)
+        majority_class = labels[np.argmax(counts)]
+
+        rows.append(
+            {
+                "leaf_id": leaf_id,
+                "n_samples": int(np.sum(leaf_mask)),
+                "majority_class": int(majority_class),
+                "representative_sample_index": int(representative_global_index),
+                "representative_features": X[representative_global_index],
+            }
+        )
+
+    return pd.DataFrame(rows), export_text(fitted_model, feature_names=["feature_0", "feature_1", "feature_2"])
+
+
 def main():
     X, y = generate_synthetic_crc_data()
     model = DecisionTreeClassifier(
         criterion="gini",
         max_depth=4,
+        min_samples_split=6,
         min_samples_leaf=3,
         random_state=42,
     )
@@ -179,6 +208,7 @@ def main():
     cv_results = cross_validate_classifier(model, X, y)
     sensitivity = global_sensitivity_srcc(model, X, y)
     reliability = noise_reliability_assessment(model, X, y)
+    leaf_representatives, threshold_rules = terminal_leaf_representatives(model, X, y)
 
     print("\n=== Decision Tree Cross-Validation Results ===")
     print(f"Accuracy_CV: {cv_results['Accuracy_CV']:.4f}   CI90: {cv_results['Accuracy_CI90']}")
@@ -186,6 +216,12 @@ def main():
 
     print("\n=== Global Sensitivity (SRCC) ===")
     print(sensitivity)
+
+    print("\n=== Threshold Rules ===")
+    print(threshold_rules)
+
+    print("\n=== Terminal Leaf Representatives ===")
+    print(leaf_representatives)
 
     print("\n=== Noise Reliability ===")
     print(reliability)
