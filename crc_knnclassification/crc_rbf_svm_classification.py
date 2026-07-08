@@ -168,18 +168,62 @@ def noise_reliability_assessment(
     return pd.DataFrame(rows)
 
 
+def margin_maximum_probability_representatives(model, X, y):
+    fitted_model = clone(model).fit(X, y)
+    probabilities = fitted_model.predict_proba(X)
+    predicted_classes = fitted_model.predict(X)
+    decision_values = fitted_model.decision_function(X)
+
+    if decision_values.ndim == 1:
+        margins = np.abs(decision_values)
+    else:
+        margins = np.min(np.abs(decision_values), axis=1)
+
+    max_probabilities = np.max(probabilities, axis=1)
+    combined_score = margins * max_probabilities
+    rows = []
+
+    for class_id in np.unique(predicted_classes):
+        class_mask = predicted_classes == class_id
+        class_indices = np.where(class_mask)[0]
+        representative_index = class_indices[np.argmax(combined_score[class_mask])]
+        rows.append(
+            {
+                "predicted_class": int(class_id),
+                "representative_sample_index": int(representative_index),
+                "margin": float(margins[representative_index]),
+                "maximum_probability": float(max_probabilities[representative_index]),
+                "representative_features": X[representative_index],
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
 def main():
     X, y = generate_synthetic_crc_data()
+    svm_penalty_C = 10.0
+    rbf_kernel_width_gamma = "scale"
     model = Pipeline(
         steps=[
             ("scaler", StandardScaler()),
-            ("svm", SVC(kernel="rbf", C=10.0, gamma="scale", probability=True, random_state=42)),
+            (
+                "svm",
+                SVC(
+                    kernel="rbf",
+                    C=svm_penalty_C,
+                    gamma=rbf_kernel_width_gamma,
+                    probability=True,
+                    random_state=42,
+                ),
+            ),
         ]
     )
 
     cv_results = cross_validate_classifier(model, X, y)
     sensitivity = global_sensitivity_srcc(model, X, y)
     reliability = noise_reliability_assessment(model, X, y)
+    representatives = margin_maximum_probability_representatives(model, X, y)
 
     print("\n=== RBF-SVM Cross-Validation Results ===")
     print(f"Accuracy_CV: {cv_results['Accuracy_CV']:.4f}   CI90: {cv_results['Accuracy_CI90']}")
@@ -187,6 +231,13 @@ def main():
 
     print("\n=== Global Sensitivity (SRCC) ===")
     print(sensitivity)
+
+    print("\n=== RBF-SVM Parameters ===")
+    print(f"C penalty parameter: {svm_penalty_C}")
+    print(f"Kernel width gamma: {rbf_kernel_width_gamma}")
+
+    print("\n=== Margin-Maximum-Probability Representatives ===")
+    print(representatives)
 
     print("\n=== Noise Reliability ===")
     print(reliability)
