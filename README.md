@@ -44,9 +44,9 @@ CRC_Classification/
 
 - `crc_classification.py` - command-line runner for the default demo
 - `crc_classification_full.py` - standalone single-file version of the workflow
-- `crc_decision_tree_classification.py` - standalone Decision Tree classifier demo
-- `crc_random_forest_classification.py` - standalone Random Forest classifier demo
-- `crc_rbf_svm_classification.py` - standalone RBF-SVM classifier demo
+- `crc_decision_tree_classification.py` - standalone Decision Tree classifier demo with threshold rules and terminal leaf representatives
+- `crc_random_forest_classification.py` - standalone Random Forest classifier demo with majority-vote representatives
+- `crc_rbf_svm_classification.py` - standalone RBF-SVM classifier demo with margin-maximum-probability representatives
 - `crc_knn_classification/knn.py` - weighted KNN and tunable weighted KNN models
 - `crc_knn_classification/goodness_of_fit.py` - distribution goodness-of-fit checks
 - `crc_knn_classification/labeling.py` - ACT class labelling and label evaluation
@@ -93,7 +93,8 @@ python crc_rbf_svm_classification.py
 ```
 
 These scripts use the same synthetic CRC-style dataset and report
-cross-validation, sensitivity, and noise reliability results for each model.
+cross-validation, sensitivity, representative samples, and noise reliability
+results for each model.
 
 ## Using Your Own Data
 
