@@ -167,11 +167,33 @@ def noise_reliability_assessment(
     return pd.DataFrame(rows)
 
 
+def forest_vote_summary(model, X, y):
+    fitted_model = clone(model).fit(X, y)
+    tree_predictions = np.asarray([tree.predict(X) for tree in fitted_model.estimators_])
+    rows = []
+
+    for sample_index in range(X.shape[0]):
+        votes, counts = np.unique(tree_predictions[:, sample_index], return_counts=True)
+        majority_class = votes[np.argmax(counts)]
+        vote_fraction = np.max(counts) / len(fitted_model.estimators_)
+        rows.append(
+            {
+                "sample_index": sample_index,
+                "majority_vote_class": int(majority_class),
+                "vote_fraction": float(vote_fraction),
+                "representative_features": X[sample_index],
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
 def main():
     X, y = generate_synthetic_crc_data()
     model = RandomForestClassifier(
         n_estimators=200,
         max_depth=6,
+        min_samples_split=4,
         min_samples_leaf=2,
         random_state=42,
     )
@@ -179,6 +201,7 @@ def main():
     cv_results = cross_validate_classifier(model, X, y)
     sensitivity = global_sensitivity_srcc(model, X, y)
     reliability = noise_reliability_assessment(model, X, y)
+    vote_summary = forest_vote_summary(model, X, y)
 
     print("\n=== Random Forest Cross-Validation Results ===")
     print(f"Accuracy_CV: {cv_results['Accuracy_CV']:.4f}   CI90: {cv_results['Accuracy_CI90']}")
@@ -187,6 +210,9 @@ def main():
     fitted_model = clone(model).fit(X, y)
     print("\n=== Feature Importances ===")
     print(pd.DataFrame({"feature_index": range(X.shape[1]), "importance": fitted_model.feature_importances_}))
+
+    print("\n=== Majority-Vote Representatives ===")
+    print(vote_summary.head(12))
 
     print("\n=== Global Sensitivity (SRCC) ===")
     print(sensitivity)
